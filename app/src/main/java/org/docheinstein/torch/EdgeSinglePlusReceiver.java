@@ -50,49 +50,11 @@ public class EdgeSinglePlusReceiver extends SlookCocktailProvider {
         }
     }
 
-    private class TorchCallbackReceiver extends TorchCallback {
-
-        private Context mContext;
-        private int mCocktailId;
-
-        private TorchCallbackReceiver(Context context, int cocktailId) {
-            mContext = context;
-            mCocktailId = cocktailId;
-        }
-
-        @Override
-        public void onTorchModeChanged(@NonNull String cameraId, boolean enabled) {
-            if (!cameraId.equals(sCameraId)) {
-                Log.w(TAG, "Ignoring onTorchModeChanged for camera [" + cameraId + "]");
-                return;
-            }
-
-            Log.i(TAG, "Torch [" + cameraId + "] mode changed: " + enabled);
-            sTorchState = TorchState.fromBool(enabled);
-            renderCocktail(mContext, mCocktailId);
-        }
-
-        @Override
-        public void onTorchModeUnavailable(@NonNull String cameraId) {
-            if (!cameraId.equals(sCameraId)) {
-                Log.w(TAG, "Ignoring onTorchModeUnavailable for camera [" + cameraId + "]");
-                return;
-            }
-
-            Log.i(TAG, "Torch [" + cameraId + "] unavailable");
-            sTorchState = TorchState.Unavailable;
-            renderCocktail(mContext, mCocktailId);
-        }
-    }
-
-
     private static final Object sLock = new Object();
+
     private static String sCameraId = null;
-
     private static TorchState sTorchState = TorchState.Unavailable;
-    private static TorchCallbackReceiver sTorchCallback = null;
-
-
+    private static TorchCallback sTorchCallback = null;
 
     @Override
     public void onReceive(Context context, Intent intent) {
@@ -140,13 +102,51 @@ public class EdgeSinglePlusReceiver extends SlookCocktailProvider {
     }
 
     @Override
-    public void onVisibilityChanged(Context context, int cocktailId, int visibility) {
+    public void onVisibilityChanged(final Context context, final int cocktailId, int visibility) {
         boolean visible = visibility == SlookCocktailManager.COCKTAIL_VISIBILITY_SHOW;
         Log.i(TAG, "onVisibilityChanged, visible = " + visible);
-        if (visible)
+
+        CameraManager cameraManager = getCameraManager(context);
+
+        if (cameraManager == null) {
+            Log.e(TAG, "No camera available!");
+            return;
+        }
+
+        if (sTorchCallback != null)
+            cameraManager.unregisterTorchCallback(sTorchCallback);
+
+        if (visible) {
+            sTorchCallback = new TorchCallback() {
+                @Override
+                public void onTorchModeChanged(@NonNull String cameraId, boolean enabled) {
+                    if (!cameraId.equals(sCameraId)) {
+                        Log.w(TAG, "Ignoring onTorchModeChanged for camera [" + cameraId + "]");
+                        return;
+                    }
+
+                    Log.i(TAG, "Torch [" + cameraId + "] mode changed: " + enabled);
+                    sTorchState = TorchState.fromBool(enabled);
+                    renderCocktail(context, cocktailId);
+                }
+
+                @Override
+                public void onTorchModeUnavailable(@NonNull String cameraId) {
+                    if (!cameraId.equals(sCameraId)) {
+                        Log.w(TAG, "Ignoring onTorchModeUnavailable for camera [" + cameraId + "]");
+                        return;
+                    }
+
+                    Log.i(TAG, "Torch [" + cameraId + "] unavailable");
+                    sTorchState = TorchState.Unavailable;
+                    renderCocktail(context, cocktailId);
+                }
+            };
+            cameraManager.registerTorchCallback(sTorchCallback, null);
             synchronized (sLock) {
                 renderCocktail(context, cocktailId);
             }
+        }
     }
 
     @Override
@@ -162,7 +162,7 @@ public class EdgeSinglePlusReceiver extends SlookCocktailProvider {
 
         synchronized (sLock) {
 
-            CameraManager cameraManager = context.getSystemService(CameraManager.class);
+            CameraManager cameraManager = getCameraManager(context);
 
             if (cameraManager == null) {
                 Log.e(TAG, "No camera available!");
@@ -192,13 +192,6 @@ public class EdgeSinglePlusReceiver extends SlookCocktailProvider {
                     return;
                 }
             }
-
-            if (sTorchCallback == null) {
-                Log.d(TAG, "Initializing torch callback");
-                sTorchCallback = new TorchCallbackReceiver(context, cocktailId);
-            }
-
-            cameraManager.registerTorchCallback(sTorchCallback, null);
 
             renderCocktail(context, cocktailId);
         }
@@ -231,7 +224,7 @@ public class EdgeSinglePlusReceiver extends SlookCocktailProvider {
 
     private void onSetTorchState(final Context context, final int cocktailId, TorchState newTorchState) {
         synchronized (sLock) {
-            CameraManager cameraManager = context.getSystemService(CameraManager.class);
+            CameraManager cameraManager = getCameraManager(context);
 
             if (cameraManager == null) {
                 Log.e(TAG, "No camera available!");
@@ -279,5 +272,9 @@ public class EdgeSinglePlusReceiver extends SlookCocktailProvider {
 
     private static boolean hasFlashlight(Context context) {
         return context.getPackageManager().hasSystemFeature(PackageManager.FEATURE_CAMERA_FLASH);
+    }
+
+    private static CameraManager getCameraManager(Context context) {
+        return context.getSystemService(CameraManager.class);
     }
 }
