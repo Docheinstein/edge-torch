@@ -53,7 +53,7 @@ public class EdgeSinglePlusReceiver extends SlookCocktailProvider {
     private static final Object sLock = new Object();
 
     private static String sCameraId = null;
-    private static TorchState sTorchState = TorchState.Unavailable;
+    private static TorchState sTorchState = null;
     private static TorchCallback sTorchCallback = null;
 
     @Override
@@ -250,7 +250,7 @@ public class EdgeSinglePlusReceiver extends SlookCocktailProvider {
     private void renderCocktail(Context context, int cocktailId) {
         RemoteViews panelView = createPanelView(context, cocktailId);
 
-        if (!hasFlashlight(context)) {
+        if (!hasFlashlight(context) || sTorchState == TorchState.Unavailable) {
             Log.e(TAG, "No flashlight available!");
             panelView.setViewVisibility(R.id.flashlightUnavailableText, View.VISIBLE);
             panelView.setViewVisibility(R.id.flashlightOn, View.GONE);
@@ -262,10 +262,14 @@ public class EdgeSinglePlusReceiver extends SlookCocktailProvider {
 
         panelView.setViewVisibility(R.id.flashlightUnavailableText, View.GONE);
 
-        panelView.setViewVisibility(R.id.flashlightOn,
-                sTorchState == TorchState.Enabled ? View.VISIBLE : View.GONE);
-        panelView.setViewVisibility(R.id.flashlightOff,
-                sTorchState == TorchState.Disabled ? View.VISIBLE : View.GONE);
+
+        if (sTorchState == null || sTorchState == TorchState.Disabled) {
+            panelView.setViewVisibility(R.id.flashlightOff, View.VISIBLE);
+            panelView.setViewVisibility(R.id.flashlightOn, View.GONE);
+        } else {
+            panelView.setViewVisibility(R.id.flashlightOff, View.GONE);
+            panelView.setViewVisibility(R.id.flashlightOn, View.VISIBLE);
+        }
 
         SlookCocktailManager.getInstance(context).updateCocktail(cocktailId, panelView);
     }
