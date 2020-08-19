@@ -15,7 +15,6 @@
                     <action android:name="com.samsung.android.cocktail.v2.action.COCKTAIL_UPDATE" />
                     <action android:name="org.docheinstein.stopwatch.ACTION_ENABLE_TORCH" />
                     <action android:name="org.docheinstein.stopwatch.ACTION_DISABLE_TORCH" />
-                    <action android:name="org.docheinstein.stopwatch.ACTION_TOGGLE_TORCH" />
                 </intent-filter>
 
                 <meta-data

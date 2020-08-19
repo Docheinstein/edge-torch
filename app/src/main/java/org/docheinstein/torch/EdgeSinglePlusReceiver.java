@@ -24,7 +24,6 @@ public class EdgeSinglePlusReceiver extends SlookCocktailProvider {
 
     private static final String ACTION_ENABLE_TORCH = "org.docheinstein.torch.ACTION_ENABLE_TORCH";
     private static final String ACTION_DISABLE_TORCH = "org.docheinstein.torch.ACTION_DISABLE_TORCH";
-    private static final String ACTION_TOGGLE_TORCH = "org.docheinstein.torch.ACTION_TOGGLE_TORCH";
     private static final String EXTRA_COCKTAIL_ID = "cocktailId";
 
     private enum TorchState {
@@ -33,6 +32,7 @@ public class EdgeSinglePlusReceiver extends SlookCocktailProvider {
         Disabled
         ;
 
+        @SuppressWarnings("unused")
         public TorchState opposite() {
             if (this == Unavailable)
                 throw new RuntimeException("Cannot call opposite() on Unavailable");
@@ -73,12 +73,7 @@ public class EdgeSinglePlusReceiver extends SlookCocktailProvider {
             cocktailId = extras.getInt(EXTRA_COCKTAIL_ID);
         }
 
-        //noinspection SwitchStatementWithTooFewBranches
         switch (action) {
-            case ACTION_TOGGLE_TORCH:
-                if (sTorchState != TorchState.Unavailable)
-                    onSetTorchState(context, cocktailId, sTorchState.opposite());
-                break;
             case ACTION_ENABLE_TORCH:
                 onSetTorchState(context, cocktailId, TorchState.Enabled);
                 break;
@@ -120,7 +115,7 @@ public class EdgeSinglePlusReceiver extends SlookCocktailProvider {
             sTorchCallback = new TorchCallback() {
                 @Override
                 public void onTorchModeChanged(@NonNull String cameraId, boolean enabled) {
-                    if (!cameraId.equals(sCameraId)) {
+                    if (!cameraId.equals(getCameraId(context))) {
                         Log.w(TAG, "Ignoring onTorchModeChanged for camera [" + cameraId + "]");
                         return;
                     }
@@ -132,7 +127,7 @@ public class EdgeSinglePlusReceiver extends SlookCocktailProvider {
 
                 @Override
                 public void onTorchModeUnavailable(@NonNull String cameraId) {
-                    if (!cameraId.equals(sCameraId)) {
+                    if (!cameraId.equals(getCameraId(context))) {
                         Log.w(TAG, "Ignoring onTorchModeUnavailable for camera [" + cameraId + "]");
                         return;
                     }
@@ -167,30 +162,6 @@ public class EdgeSinglePlusReceiver extends SlookCocktailProvider {
             if (cameraManager == null) {
                 Log.e(TAG, "No camera available!");
                 return;
-            }
-
-
-            if (sCameraId == null) {
-                try {
-                    Log.d(TAG, "Trying to retrieve camera list");
-                    String[] cameraIds = cameraManager.getCameraIdList();
-
-                    if (cameraIds.length == 0) {
-                        Log.e(TAG, "No camera available!");
-                        return;
-                    }
-
-                    for (String cameraId : cameraIds) {
-                        Log.i(TAG, "Found camera: " + cameraId);
-                    }
-
-                    sCameraId = cameraIds[0];
-                    Log.i(TAG, "Using the camera: " + sCameraId);
-
-                } catch (CameraAccessException e) {
-                    Log.e(TAG, "Failed to retrieve camera ids", e);
-                    return;
-                }
             }
 
             renderCocktail(context, cocktailId);
@@ -233,10 +204,11 @@ public class EdgeSinglePlusReceiver extends SlookCocktailProvider {
 
             try {
                 Log.i(TAG, "Changing torch state: " + newTorchState);
-                cameraManager.setTorchMode(sCameraId, newTorchState.value());
+                String cameraId = getCameraId(context);
+                if (cameraId != null)
+                    cameraManager.setTorchMode(cameraId, newTorchState.value());
             } catch (CameraAccessException e) {
                 Log.e(TAG, "Failed to set torch state", e);
-                return;
             } catch (RuntimeException re) {
                 Log.w(TAG, "Runtime exception", re);
             }
@@ -280,5 +252,36 @@ public class EdgeSinglePlusReceiver extends SlookCocktailProvider {
 
     private static CameraManager getCameraManager(Context context) {
         return context.getSystemService(CameraManager.class);
+    }
+
+    private static String getCameraId(Context context) {
+        if (sCameraId == null) {
+            try {
+                Log.d(TAG, "Trying to retrieve camera list");
+                String[] cameraIds = getCameraManager(context).getCameraIdList();
+
+                if (cameraIds.length == 0) {
+                    Log.e(TAG, "No camera available!");
+                    return null;
+                }
+
+                for (String cameraId : cameraIds) {
+                    Log.i(TAG, "Found camera: " + cameraId);
+                }
+
+                sCameraId = cameraIds[0];
+                Log.i(TAG, "Using the camera: " + sCameraId);
+
+            } catch (CameraAccessException e) {
+                Log.e(TAG, "Failed to retrieve camera ids", e);
+                return null;
+            }
+        }
+
+        if (sCameraId == null) {
+            Log.w(TAG, "Invalid camera id - cannot be retrieved");
+        }
+
+        return sCameraId;
     }
 }
